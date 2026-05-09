@@ -171,7 +171,25 @@ function createNopperaboCanvas(imgEl, detection) {
     const ly = Math.round(lm.y * H);
     for (let dy = -landR; dy <= landR; dy++) {
       for (let dx = -landR; dx <= landR; dx++) {
-        if (dx * dx + dy * dy > landR * landR) continue; // 円形に限定
+        if (dx * dx + dy * dy > landR * landR) continue;
+        const mx = lx + dx, my = ly + dy;
+        if (mx >= 0 && mx < W && my >= 0 && my < H) {
+          const mi = (my * W + mx) * 4;
+          md[mi] = md[mi + 1] = md[mi + 2] = md[mi + 3] = 255;
+        }
+      }
+    }
+  });
+
+  // 眉毛推定位置(目ランドマークを faceH×0.13 上にずらした位置)も強制マスクに追加
+  const eyebrowYOff = Math.round(faceH * 0.13);
+  [0, 1].forEach(kpIdx => {
+    const lm = detection.landmarks[kpIdx];
+    const lx = Math.round(lm.x * W);
+    const ly = Math.round(lm.y * H) - eyebrowYOff;
+    for (let dy = -landR; dy <= landR; dy++) {
+      for (let dx = -landR; dx <= landR; dx++) {
+        if (dx * dx + dy * dy > landR * landR) continue;
         const mx = lx + dx, my = ly + dy;
         if (mx >= 0 && mx < W && my >= 0 && my < H) {
           const mi = (my * W + mx) * 4;
@@ -190,26 +208,40 @@ function createNopperaboCanvas(imgEl, detection) {
   const softMaskCtx = softMaskCanvas.getContext('2d');
   softMaskCtx.filter = `blur(${Math.round(Math.min(faceW, faceH) * 0.10)}px)`;
   softMaskCtx.drawImage(maskCanvas, 0, 0);
+  const softMaskData = softMaskCtx.getImageData(0, 0, W, H).data;
 
-  // ⑥ 肌色べた塗りキャンバスを作成し、ソフトマスクで切り抜く
-  //    元画像は一切使わないため、眼鏡・眉毛など色によらず肌色で完全に上書きできる
-  const skinCanvas = document.createElement('canvas');
-  skinCanvas.width  = W;
-  skinCanvas.height = H;
-  const skinCtx = skinCanvas.getContext('2d');
-  skinCtx.fillStyle = `rgb(${Math.round(refR)},${Math.round(refG)},${Math.round(refB)})`;
-  skinCtx.fillRect(0, 0, W, H);
-  skinCtx.globalCompositeOperation = 'destination-in';
-  skinCtx.drawImage(softMaskCanvas, 0, 0);
-
-  // ⑦ 元画像の上に肌色レイヤーを重ねる
-  //    → マスク領域だけ肌色に置換、輪郭・背景・髪・服は原画像を保持
+  // ⑥ ピクセル単位の適応ブレンド
+  //    softMask強度 × 色距離重み でブレンド率を決定する
+  //    肌色に近いピクセル: BASE_BLEND(軽め)で自然な肌感を保持
+  //    眼鏡・眉毛など色が遠いピクセル: ブレンド率 1.0 で肌色に完全置換
   const nc = document.createElement('canvas');
   nc.width  = W;
   nc.height = H;
-  const ctx = nc.getContext('2d');
-  ctx.drawImage(imgEl, 0, 0);
-  ctx.drawImage(skinCanvas, 0, 0);
+  const ncCtx = nc.getContext('2d');
+  ncCtx.drawImage(imgEl, 0, 0);
+  const outImg = ncCtx.getImageData(0, 0, W, H);
+  const od = outImg.data;
 
+  const BASE_BLEND  = 0.5;  // 肌色類似ピクセルの最小ブレンド率
+  const COLOR_RANGE = 80;   // この色距離以上で最大ブレンド(RGB ユークリッド距離)
+
+  for (let idx = 0; idx < W * H; idx++) {
+    const i = idx * 4;
+    const maskAlpha = softMaskData[i + 3] / 255;
+    if (maskAlpha < 0.01) continue;
+
+    const r = od[i], g = od[i + 1], b = od[i + 2];
+    const dr = r - refR, dg = g - refG, db = b - refB;
+    // RGB ユークリッド距離: 明度・色相・彩度の差を一括で評価する
+    const colorDist = Math.sqrt(dr * dr + dg * dg + db * db);
+    const colorWeight = Math.min(1, colorDist / COLOR_RANGE);
+
+    const blend = maskAlpha * (BASE_BLEND + (1 - BASE_BLEND) * colorWeight);
+    od[i]     = Math.round(r * (1 - blend) + refR * blend);
+    od[i + 1] = Math.round(g * (1 - blend) + refG * blend);
+    od[i + 2] = Math.round(b * (1 - blend) + refB * blend);
+  }
+
+  ncCtx.putImageData(outImg, 0, 0);
   return nc;
 }
