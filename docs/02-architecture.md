@@ -1,6 +1,6 @@
 ---
 document_id: SAD-face-puzzle-001
-version: 0.3.0
+version: 0.4.0
 status: approved
 created: 2026-05-02
 authors:
@@ -106,7 +106,7 @@ C4Container
 | C-01 | UI レイヤー | 各画面の HTML/CSS 構造を提供する。画面間遷移を制御する | HTML5, CSS3 | FR-003, FR-005, FR-006, FR-007 |
 | C-02 | ゲームロジック | 選択モードの保持・画面遷移トリガー・パーツ一覧の状態管理を行う。のっぺらぼう canvas を state に保持する | Vanilla JavaScript (ES2020) | FR-003, FR-006, FR-007 |
 | C-03 | Canvas エンジン | 見ながらモードではのっぺらぼう画像を cover スタイルで背景描画し、その上でパーツを nopperaboTransform.scale 倍率でドラッグ配置処理する。目隠しモードでは blindPhase('outline' → 'blank' → 'instruction')のフェーズ遷移を制御し、outline フェーズの顔ガイド破線楕円を nopperaboTransform 経由で実際の顔座標に整合させる。全パーツ配置完了後に完成画面へ自動遷移する。完成画面ではのっぺらぼう背景の上に各パーツを保存済み正規化タップ座標へ描画して初公開する | Canvas API, Touch Events API | FR-004, FR-005, FR-007 |
-| C-04 | 顔検出モジュール | 入力画像から顔ランドマークを検出し、各パーツを Canvas に切り出す(`detectParts()`)。`createNopperaboCanvas()` 関数により、①額中央からサンプリングした基準肌色を測定、②肌色近似ピクセルとランドマーク周辺円形領域を重ねたハードマスクを構築、③ぼかしでソフトマスクに変換、④マスク内=元画像・マスク外=基準肌色の事前ぼかし用 canvas を生成、⑤事前ぼかし canvas に強ぼかし(顔短辺の 35%)を適用、⑥ソフトマスクで切り抜いた結果を元画像に合成、の 6 段階処理でのっぺらぼう canvas を生成し呼び出し元へ返す | MediaPipe FaceDetection (CDN) | FR-002, FR-008 |
+| C-04 | 顔検出モジュール | 入力画像から顔ランドマークを検出し、各パーツを Canvas に切り出す(`detectParts()`)。パーツは眉×2・目×2・鼻×1・口×1 の計 6 種。眉は目ランドマークを `faceH×0.13` 上方にずらした推定座標を使用し、切り出し後に `applyEllipticalMask()` でフェザー付き楕円形状に整形する。`createNopperaboCanvas()` は①顔全域の暖色ピクセル中央値で基準肌色を測定、②肌色近似 + ランドマーク円形 + 眉毛推定円形でハードマスクを構築、③ハードマスクをぼかしてソフトマスクを生成、④ `effectiveMask = max(ハード, ソフト)` かつ RGB 色距離に基づく適応ブレンド(肌色類似ピクセルは BASE_BLEND=0.75、眼鏡・眉毛など色距離が大きいピクセルはブレンド率 1.0)で元画像に合成する 4 段階処理でのっぺらぼう canvas を生成し呼び出し元へ返す | MediaPipe FaceDetection (CDN) | FR-002, FR-008 |
 | C-05 | 写真入力モジュール | `<input type="file">` 経由でカメラ撮影またはライブラリから画像を取得する | HTML File API, FileReader API | FR-001 |
 
 ---
@@ -177,12 +177,10 @@ sequenceDiagram
     Detector->>Logic: {parts[], detection} を返す
     Logic->>Logic: state.parts / state.detection に保存
     Logic->>Detector: createNopperaboCanvas(img, detection) を呼び出す
-    Detector->>Detector: 額サンプリング → 基準肌色測定
-    Detector->>Detector: 肌色マスク + ランドマーク円形マスク → ハードマスク構築
+    Detector->>Detector: 顔全域の暖色ピクセル中央値 → 基準肌色(refR/refG/refB)測定
+    Detector->>Detector: 肌色近似 + ランドマーク円形 + 眉毛推定円形 → ハードマスク構築
     Detector->>Detector: ハードマスクをぼかして → ソフトマスク生成
-    Detector->>Detector: preblurCanvas 生成(マスク内=元画像 / マスク外=基準肌色)
-    Detector->>Detector: preblurCanvas に強ぼかし(顔短辺の 35%)適用
-    Detector->>Detector: ソフトマスクで切り抜き → 元画像に合成
+    Detector->>Detector: effectiveMask=max(hard,soft) + RGB色距離で適応ブレンド → 元画像に合成
     Detector->>Logic: のっぺらぼう canvas を返す
     Logic->>Logic: state.nopperaboCanvas に保存
     Logic->>User: パーツ確認画面を表示
@@ -246,7 +244,7 @@ sequenceDiagram
 | 変数 | 保持場所 | 内容 |
 |---|---|---|
 | `state.nopperaboCanvas` | C-02 ゲームロジック(グローバル状態) | のっぺらぼう画像を保持する offscreen Canvas |
-| `state.parts[]` | C-02 ゲームロジック(グローバル状態) | 切り出したパーツ画像の配列。各要素は `{name, blindLabel, canvas}` を持つ。`blindLabel` は目隠しモード指示文用のユーザー視点表現(例: "向かって左の目") |
+| `state.parts[]` | C-02 ゲームロジック(グローバル状態) | 切り出したパーツ画像の配列(計 6 要素)。各要素は `{name, blindLabel, canvas}` を持つ。眉パーツは目ランドマークに `yOff=-0.13` を適用した推定座標から切り出す。`blindLabel` は目隠しモード指示文用のユーザー視点表現(例: "向かって左の眉") |
 | `state.detection` | C-02 ゲームロジック(グローバル状態) | MediaPipe の生検出結果。`boundingBox` および `landmarks[]` を含む。のっぺらぼう canvas 生成および顔ガイド描画に使用する |
 | `state.mode` | C-02 ゲームロジック(グローバル状態) | 選択中のゲームモード('look' / 'blind') |
 | `nopperaboTransform` | C-03 Canvas エンジン(ローカル変数) | のっぺらぼう canvas の cover スタイル描画変換情報。`{sx, sy, scale}` 形式。パーツ描画倍率・ヒットテスト・顔ガイド座標変換に共用する |
@@ -353,7 +351,7 @@ face-puzzle/
 | TBD-001 | MediaPipe FaceDetection のランドマーク精度が各パーツ切り出しに十分かの実装検証 | 実装フェーズ序盤 |
 | TBD-002 | NFR-002 の 10s 閾値を現行 iOS / Android 端末で満たせるかのプロトタイプ計測 | 実装フェーズ序盤 |
 | ~~TBD-003~~ | ~~「耳」パーツが MediaPipe FaceDetection で検出可能かの確認~~ | **解決済み(2026-05-03)**:耳ランドマーク(kpIndex 4/5)は検出精度が不安定なため、パーツセットを目(左右)・鼻・口の 4 点に確定した |
-| ~~TBD-004~~ | ~~のっぺらぼう canvas 生成に使用する肌色の RGB 値の決定~~ | **解決済み(2026-05-03)**:額中央(顔中心より 30% 上)の 31×31 ピクセルを平均して基準肌色を動的に測定する方式を採用した |
+| ~~TBD-004~~ | ~~のっぺらぼう canvas 生成に使用する肌色の RGB 値の決定~~ | **解決済み(2026-05-10)**:顔全域の暖色系ピクセル(r>g かつ r>b、輝度 50〜240)を収集して各チャンネルの中央値を基準肌色として動的に算出する方式を採用。額固定サンプリングより照明ムラへの耐性が高い |
 | ~~TBD-005~~ | ~~outline フェーズの破線楕円のサイズ・形状の決定方針~~ | **解決済み(2026-05-03)**:`(bb.xCenter, bb.yCenter)` を nopperaboTransform で変換したスクリーン座標に描画。半径は `bb.width/2 * nc.width * scale`(水平)・`bb.height/2 * nc.height * scale`(垂直) |
 
 ---
@@ -365,7 +363,7 @@ face-puzzle/
 | R-001 | MediaPipe が対象ブラウザ(iOS Safari)で正常動作しない | 中 | 高 | 実装フェーズ序盤で iOS Safari での動作確認を最優先で実施する |
 | R-002 | CDN 障害により MediaPipe ライブラリが取得不可になる | 低 | 高 | 本番リリース時にライブラリファイルをリポジトリに同梱する対策を検討する |
 | R-003 | 低照度・横向きなど撮影条件が悪い写真でのパーツ検出失敗 | 中 | 中 | エラー時に「もう一度撮影」へ誘導するフォールバック UI を実装する |
-| R-004 | のっぺらぼう canvas の除去精度が低く、顔の特徴が残る・境界が不自然に見える | 低 | 中 | 肌色検出 + ランドマーク円形マスク + ソフトマスク + preblurCanvas(マスク外を基準肌色で埋めた上で強ぼかし) による 6 段階アルゴリズムで対応済み。照明条件が極端な写真ではリトライを促すフォールバック UI で対処する |
+| R-004 | のっぺらぼう canvas の除去精度が低く、顔の特徴が残る・境界が不自然に見える | 低 | 中 | 顔全域中央値による基準肌色測定 + ハード/ソフトマスク二重構造 + RGB 色距離に基づく適応ブレンド(肌色類似: BASE_BLEND=0.75・非肌色: blend=1.0)の 4 段階アルゴリズムで対応済み。照明条件が極端な写真ではリトライを促すフォールバック UI で対処する |
 
 ---
 
@@ -376,3 +374,4 @@ face-puzzle/
 | 0.1.0 | 2026-05-02 | 初版作成 | architect-coach |
 | 0.2.0 | 2026-05-03 | 仕様変更を反映(のっぺらぼう背景・見ながらモード改修・目隠しモード完全リデザイン) | architect-coach |
 | 0.3.0 | 2026-05-05 | 実装確定内容を反映(のっぺらぼう 6 段階アルゴリズム詳細・nopperaboTransform・state.detection・blindLabel・TBD-003〜005 解決) | architect-coach |
+| 0.4.0 | 2026-05-10 | 眉毛パーツ追加・のっぺらぼうアルゴリズム刷新(顔全域中央値サンプリング・適応ブレンド・楕円マスク・TBD-004 解決内容更新・R-004 対応策更新) | architect-coach |

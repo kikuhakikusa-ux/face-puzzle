@@ -21,8 +21,8 @@
 - docs/adr/ADR-003-github-pages.md — GitHub Pages 採用の根拠
 
 ## 成果物バージョン
-- docs/01-requirements.md — v0.3.0 (2026-05-05 更新済み)
-- docs/02-architecture.md — v0.3.0 (2026-05-05 更新済み)
+- docs/01-requirements.md — v0.4.0 (2026-05-10 更新済み)
+- docs/02-architecture.md — v0.4.0 (2026-05-10 更新済み)
 
 ## 次のステップ
 - [ ] 動作確認(ローカル or GitHub Pages)
