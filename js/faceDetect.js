@@ -210,22 +210,34 @@ function createNopperaboCanvas(imgEl, detection) {
   // マスク内だけ元画像で上書き
   preblurCtx.drawImage(maskedOrigCanvas, 0, 0);
 
-  // ⑦ 素材画像に2パスの強いぼかしをかける(各パス 顔短辺の 30%、合計効果 ~60%)
-  //    1パスで大きな radius を指定するより2パスの方がより均一に広がる
-  const blurR = Math.round(Math.min(faceW, faceH) * 0.3);
-  const blurCanvas1 = document.createElement('canvas');
-  blurCanvas1.width  = W;
-  blurCanvas1.height = H;
-  const blurCtx1 = blurCanvas1.getContext('2d');
-  blurCtx1.filter = `blur(${blurR}px)`;
-  blurCtx1.drawImage(preblurCanvas, 0, 0);
+  // ⑦ 極強ぼかし: 1/8 ダウンサンプル → 小サイズでさらにぼかし → 元サイズへアップサンプル
+  //    縮小時に 8×8 ブロックが平均化されるため、CSS blur の限界を超えて特徴をほぼ完全に除去できる
+  const SCALE = 8;
+  const smallW = Math.max(2, Math.round(W / SCALE));
+  const smallH = Math.max(2, Math.round(H / SCALE));
+
+  const smallCanvas = document.createElement('canvas');
+  smallCanvas.width  = smallW;
+  smallCanvas.height = smallH;
+  const sCtx = smallCanvas.getContext('2d');
+  sCtx.imageSmoothingEnabled = true;
+  sCtx.imageSmoothingQuality = 'high';
+  sCtx.drawImage(preblurCanvas, 0, 0, smallW, smallH);
+
+  const smallBlurred = document.createElement('canvas');
+  smallBlurred.width  = smallW;
+  smallBlurred.height = smallH;
+  const sbCtx = smallBlurred.getContext('2d');
+  sbCtx.filter = `blur(${Math.max(2, Math.round(Math.min(smallW, smallH) * 0.15))}px)`;
+  sbCtx.drawImage(smallCanvas, 0, 0);
 
   const blurCanvas = document.createElement('canvas');
   blurCanvas.width  = W;
   blurCanvas.height = H;
   const blurCtx = blurCanvas.getContext('2d');
-  blurCtx.filter = `blur(${blurR}px)`;
-  blurCtx.drawImage(blurCanvas1, 0, 0);
+  blurCtx.imageSmoothingEnabled = true;
+  blurCtx.imageSmoothingQuality = 'high';
+  blurCtx.drawImage(smallBlurred, 0, 0, W, H);
 
   // ⑧ ぼかし結果にソフトマスクを適用(マスク外を透明化)
   blurCtx.globalCompositeOperation = 'destination-in';
