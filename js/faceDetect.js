@@ -123,23 +123,29 @@ function createNopperaboCanvas(imgEl, detection) {
   srcCtx.drawImage(imgEl, 0, 0);
   const srcData = srcCtx.getImageData(0, 0, W, H).data;
 
-  // ② 額中央のピクセルをサンプリングして肌色の基準値を測定
-  const sampleCX = Math.round(faceCX);
-  const sampleCY = Math.round(faceCY - faceH * 0.3); // 顔中心より 30% 上(額付近)
-  const SAMPLE_R = 15;
-  let rSum = 0, gSum = 0, bSum = 0, cnt = 0;
-  for (let sy = sampleCY - SAMPLE_R; sy <= sampleCY + SAMPLE_R; sy++) {
-    for (let sx = sampleCX - SAMPLE_R; sx <= sampleCX + SAMPLE_R; sx++) {
-      if (sx >= 0 && sx < W && sy >= 0 && sy < H) {
-        const i = (sy * W + sx) * 4;
-        rSum += srcData[i]; gSum += srcData[i + 1]; bSum += srcData[i + 2];
-        cnt++;
+  // ② 顔領域の肌色ピクセルの中央値を基準肌色として測定
+  //    額固定サンプリングより明暗ムラの影響を受けにくく、代表色が安定する
+  //    条件: 暖色系(r > g かつ r > b)かつ輝度が極端でない(50〜240)
+  const rArr = [], gArr = [], bArr = [];
+  for (let y = faceTop; y < faceBottom; y++) {
+    for (let x = faceLeft; x < faceRight; x++) {
+      const i = (y * W + x) * 4;
+      const r = srcData[i], g = srcData[i + 1], b = srcData[i + 2];
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (r > g && r > b && lum > 50 && lum < 240) {
+        rArr.push(r); gArr.push(g); bArr.push(b);
       }
     }
   }
-  const refR = cnt ? rSum / cnt : 200;
-  const refG = cnt ? gSum / cnt : 160;
-  const refB = cnt ? bSum / cnt : 130;
+  const median = arr => {
+    if (arr.length === 0) return null;
+    const s = [...arr].sort((a, b) => a - b);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+  const refR = median(rArr) ?? 200;
+  const refG = median(gArr) ?? 160;
+  const refB = median(bArr) ?? 130;
 
   // ③ マスク canvas を生成
   const maskCanvas = document.createElement('canvas');
@@ -162,44 +168,33 @@ function createNopperaboCanvas(imgEl, detection) {
     }
   }
 
-  // ④ ランドマーク(目・鼻・口)周辺を円形で強制マスク追加
-  //    眉毛・まつ毛・唇など肌色でない部位も確実に含める
-  const landR = Math.round(faceW * 0.12);
+  // ④ ランドマーク + 推定眉毛位置を円形で強制マスク追加
+  const addCircle = (cx, cy, r) => {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy > r * r) continue;
+        const mx = cx + dx, my = cy + dy;
+        if (mx >= 0 && mx < W && my >= 0 && my < H) {
+          const mi = (my * W + mx) * 4;
+          md[mi] = md[mi + 1] = md[mi + 2] = md[mi + 3] = 255;
+        }
+      }
+    }
+  };
+  const landR    = Math.round(faceW * 0.13);
+  const browR    = Math.round(faceW * 0.16); // 眉毛は目より広めの円で確実にカバー
+  const browYOff = Math.round(faceH * 0.13);
   [0, 1, 2, 3].forEach(kpIdx => {
     const lm = detection.landmarks[kpIdx];
-    const lx = Math.round(lm.x * W);
-    const ly = Math.round(lm.y * H);
-    for (let dy = -landR; dy <= landR; dy++) {
-      for (let dx = -landR; dx <= landR; dx++) {
-        if (dx * dx + dy * dy > landR * landR) continue;
-        const mx = lx + dx, my = ly + dy;
-        if (mx >= 0 && mx < W && my >= 0 && my < H) {
-          const mi = (my * W + mx) * 4;
-          md[mi] = md[mi + 1] = md[mi + 2] = md[mi + 3] = 255;
-        }
-      }
-    }
+    addCircle(Math.round(lm.x * W), Math.round(lm.y * H), landR);
   });
-
-  // 眉毛推定位置(目ランドマークを faceH×0.13 上にずらした位置)も強制マスクに追加
-  const eyebrowYOff = Math.round(faceH * 0.13);
   [0, 1].forEach(kpIdx => {
     const lm = detection.landmarks[kpIdx];
-    const lx = Math.round(lm.x * W);
-    const ly = Math.round(lm.y * H) - eyebrowYOff;
-    for (let dy = -landR; dy <= landR; dy++) {
-      for (let dx = -landR; dx <= landR; dx++) {
-        if (dx * dx + dy * dy > landR * landR) continue;
-        const mx = lx + dx, my = ly + dy;
-        if (mx >= 0 && mx < W && my >= 0 && my < H) {
-          const mi = (my * W + mx) * 4;
-          md[mi] = md[mi + 1] = md[mi + 2] = md[mi + 3] = 255;
-        }
-      }
-    }
+    addCircle(Math.round(lm.x * W), Math.round(lm.y * H) - browYOff, browR);
   });
 
   maskCtx.putImageData(maskImg, 0, 0);
+  const hardMaskData = maskCtx.getImageData(0, 0, W, H).data;
 
   // ⑤ ソフトマスク: ハードマスクをぼかして境界を滑らかに拡張する
   const softMaskCanvas = document.createElement('canvas');
@@ -211,9 +206,11 @@ function createNopperaboCanvas(imgEl, detection) {
   const softMaskData = softMaskCtx.getImageData(0, 0, W, H).data;
 
   // ⑥ ピクセル単位の適応ブレンド
-  //    softMask強度 × 色距離重み でブレンド率を決定する
-  //    肌色に近いピクセル: BASE_BLEND(軽め)で自然な肌感を保持
-  //    眼鏡・眉毛など色が遠いピクセル: ブレンド率 1.0 で肌色に完全置換
+  //    effectiveMask = max(ハードマスク, ソフトマスクα)
+  //      → ハードマスク内は確実に 1.0、外縁はソフトマスクで滑らかに減衰
+  //    colorWeight = sqrt(colorDist / COLOR_RANGE) で応答を急峻にする
+  //      → 肌色に近い: BASE_BLEND で軽くブレンド
+  //      → 眼鏡・眉毛など色が遠い: 1.0 でほぼ完全に肌色置換
   const nc = document.createElement('canvas');
   nc.width  = W;
   nc.height = H;
@@ -222,21 +219,23 @@ function createNopperaboCanvas(imgEl, detection) {
   const outImg = ncCtx.getImageData(0, 0, W, H);
   const od = outImg.data;
 
-  const BASE_BLEND  = 0.5;  // 肌色類似ピクセルの最小ブレンド率
-  const COLOR_RANGE = 80;   // この色距離以上で最大ブレンド(RGB ユークリッド距離)
+  const BASE_BLEND  = 0.75; // 肌色類似ピクセルの最小ブレンド率(強め)
+  const COLOR_RANGE = 50;   // この色距離で colorWeight = 1.0 に達する
 
   for (let idx = 0; idx < W * H; idx++) {
     const i = idx * 4;
-    const maskAlpha = softMaskData[i + 3] / 255;
-    if (maskAlpha < 0.01) continue;
+    const hardAlpha = hardMaskData[i + 3] / 255;
+    const softAlpha = softMaskData[i + 3] / 255;
+    const effectiveMask = Math.max(hardAlpha, softAlpha);
+    if (effectiveMask < 0.01) continue;
 
     const r = od[i], g = od[i + 1], b = od[i + 2];
     const dr = r - refR, dg = g - refG, db = b - refB;
-    // RGB ユークリッド距離: 明度・色相・彩度の差を一括で評価する
     const colorDist = Math.sqrt(dr * dr + dg * dg + db * db);
-    const colorWeight = Math.min(1, colorDist / COLOR_RANGE);
+    // sqrt カーブ: 小さい色距離でも急峻にブレンドが上がる
+    const colorWeight = Math.min(1, Math.sqrt(colorDist / COLOR_RANGE));
 
-    const blend = maskAlpha * (BASE_BLEND + (1 - BASE_BLEND) * colorWeight);
+    const blend = effectiveMask * (BASE_BLEND + (1 - BASE_BLEND) * colorWeight);
     od[i]     = Math.round(r * (1 - blend) + refR * blend);
     od[i + 1] = Math.round(g * (1 - blend) + refG * blend);
     od[i + 2] = Math.round(b * (1 - blend) + refB * blend);
