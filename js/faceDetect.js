@@ -180,78 +180,33 @@ function createNopperaboCanvas(imgEl, detection) {
 
   maskCtx.putImageData(maskImg, 0, 0);
 
-  // ⑤ ソフトマスク(ハードマスクをぼかして境界を滑らかに拡張する)
+  // ⑤ ソフトマスク: ハードマスクをぼかして境界を滑らかに拡張する
   const softMaskCanvas = document.createElement('canvas');
   softMaskCanvas.width  = W;
   softMaskCanvas.height = H;
   const softMaskCtx = softMaskCanvas.getContext('2d');
-  softMaskCtx.filter = `blur(${Math.round(Math.min(faceW, faceH) * 0.07)}px)`;
+  softMaskCtx.filter = `blur(${Math.round(Math.min(faceW, faceH) * 0.10)}px)`;
   softMaskCtx.drawImage(maskCanvas, 0, 0);
 
-  // ⑥ ぼかし用素材画像を作成
-  //    マスク内 = 元画像のピクセル
-  //    マスク外 = 平均肌色の単色
-  //    → ぼかし時に背景色(髪・服)と混ざらず、常に肌色同士でぼける
-  const maskedOrigCanvas = document.createElement('canvas');
-  maskedOrigCanvas.width  = W;
-  maskedOrigCanvas.height = H;
-  const maskedOrigCtx = maskedOrigCanvas.getContext('2d');
-  maskedOrigCtx.drawImage(imgEl, 0, 0);
-  maskedOrigCtx.globalCompositeOperation = 'destination-in';
-  maskedOrigCtx.drawImage(maskCanvas, 0, 0); // ハードマスクで切り抜く
+  // ⑥ 肌色べた塗りキャンバスを作成し、ソフトマスクで切り抜く
+  //    元画像は一切使わないため、眼鏡・眉毛など色によらず肌色で完全に上書きできる
+  const skinCanvas = document.createElement('canvas');
+  skinCanvas.width  = W;
+  skinCanvas.height = H;
+  const skinCtx = skinCanvas.getContext('2d');
+  skinCtx.fillStyle = `rgb(${Math.round(refR)},${Math.round(refG)},${Math.round(refB)})`;
+  skinCtx.fillRect(0, 0, W, H);
+  skinCtx.globalCompositeOperation = 'destination-in';
+  skinCtx.drawImage(softMaskCanvas, 0, 0);
 
-  const preblurCanvas = document.createElement('canvas');
-  preblurCanvas.width  = W;
-  preblurCanvas.height = H;
-  const preblurCtx = preblurCanvas.getContext('2d');
-  // 全面を平均肌色で塗る(マスク外はこの色になる)
-  preblurCtx.fillStyle = `rgb(${Math.round(refR)},${Math.round(refG)},${Math.round(refB)})`;
-  preblurCtx.fillRect(0, 0, W, H);
-  // マスク内だけ元画像で上書き
-  preblurCtx.drawImage(maskedOrigCanvas, 0, 0);
-
-  // ⑦ 極強ぼかし: 1/8 ダウンサンプル → 小サイズでさらにぼかし → 元サイズへアップサンプル
-  //    縮小時に 8×8 ブロックが平均化されるため、CSS blur の限界を超えて特徴をほぼ完全に除去できる
-  const SCALE = 8;
-  const smallW = Math.max(2, Math.round(W / SCALE));
-  const smallH = Math.max(2, Math.round(H / SCALE));
-
-  const smallCanvas = document.createElement('canvas');
-  smallCanvas.width  = smallW;
-  smallCanvas.height = smallH;
-  const sCtx = smallCanvas.getContext('2d');
-  sCtx.imageSmoothingEnabled = true;
-  sCtx.imageSmoothingQuality = 'high';
-  sCtx.drawImage(preblurCanvas, 0, 0, smallW, smallH);
-
-  const smallBlurred = document.createElement('canvas');
-  smallBlurred.width  = smallW;
-  smallBlurred.height = smallH;
-  const sbCtx = smallBlurred.getContext('2d');
-  sbCtx.filter = `blur(${Math.max(2, Math.round(Math.min(smallW, smallH) * 0.15))}px)`;
-  sbCtx.drawImage(smallCanvas, 0, 0);
-
-  const blurCanvas = document.createElement('canvas');
-  blurCanvas.width  = W;
-  blurCanvas.height = H;
-  const blurCtx = blurCanvas.getContext('2d');
-  blurCtx.imageSmoothingEnabled = true;
-  blurCtx.imageSmoothingQuality = 'high';
-  blurCtx.drawImage(smallBlurred, 0, 0, W, H);
-
-  // ⑧ ぼかし結果にソフトマスクを適用(マスク外を透明化)
-  blurCtx.globalCompositeOperation = 'destination-in';
-  blurCtx.filter = 'none';
-  blurCtx.drawImage(softMaskCanvas, 0, 0);
-
-  // ⑨ 元画像の上にぼかし+マスク済み画像を重ねる
-  //    → 顔の肌色領域だけ滑らかなぼかしに置換、輪郭・背景・髪・服は保持
+  // ⑦ 元画像の上に肌色レイヤーを重ねる
+  //    → マスク領域だけ肌色に置換、輪郭・背景・髪・服は原画像を保持
   const nc = document.createElement('canvas');
   nc.width  = W;
   nc.height = H;
   const ctx = nc.getContext('2d');
   ctx.drawImage(imgEl, 0, 0);
-  ctx.drawImage(blurCanvas, 0, 0);
+  ctx.drawImage(skinCanvas, 0, 0);
 
   return nc;
 }
