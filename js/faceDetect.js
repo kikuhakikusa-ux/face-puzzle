@@ -48,19 +48,22 @@ function cutParts(imgEl, detection) {
   const faceH = bb.height * H;
 
   // ランドマーク: 0=被写体の右目(画面では左側) 1=被写体の左目(画面では右側) 2=鼻 3=口
+  // yOff: ランドマーク座標から faceH の何割ずらすか(負=上方向)。眉は目から推定する
   // name: 完成メッセージ用の短縮名
   // blindLabel: 目隠しモードの指示テキスト(ユーザ視点で迷わない表現)
   const partDefs = [
+    { name: '左眉', blindLabel: '向かって左の眉', kpIndex: 0, wRatio: 0.35, hRatio: 0.12, yOff: -0.13 },
+    { name: '右眉', blindLabel: '向かって右の眉', kpIndex: 1, wRatio: 0.35, hRatio: 0.12, yOff: -0.13 },
     { name: '左目', blindLabel: '向かって左の目', kpIndex: 0, wRatio: 0.32, hRatio: 0.20 },
     { name: '右目', blindLabel: '向かって右の目', kpIndex: 1, wRatio: 0.32, hRatio: 0.20 },
     { name: '鼻',   blindLabel: '鼻',             kpIndex: 2, wRatio: 0.38, hRatio: 0.30 },
     { name: '口',   blindLabel: '口',             kpIndex: 3, wRatio: 0.48, hRatio: 0.24 },
   ];
 
-  return partDefs.map(({ name, blindLabel, kpIndex, wRatio, hRatio }) => {
+  return partDefs.map(({ name, blindLabel, kpIndex, wRatio, hRatio, yOff = 0 }) => {
     const lm = detection.landmarks[kpIndex];
     const cx = lm.x * W;
-    const cy = lm.y * H;
+    const cy = lm.y * H + faceH * yOff;
     const pw = faceW * wRatio;
     const ph = faceH * hRatio;
 
