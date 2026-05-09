@@ -67,14 +67,30 @@ function cutParts(imgEl, detection) {
     const partCanvas = document.createElement('canvas');
     partCanvas.width  = Math.round(pw);
     partCanvas.height = Math.round(ph);
-    partCanvas.getContext('2d').drawImage(
-      imgEl,
-      cx - pw / 2, cy - ph / 2, pw, ph,
-      0, 0, pw, ph
-    );
+    const partCtx = partCanvas.getContext('2d');
+    partCtx.drawImage(imgEl, cx - pw / 2, cy - ph / 2, pw, ph, 0, 0, pw, ph);
+    applyEllipticalMask(partCtx, Math.round(pw), Math.round(ph));
 
     return { name, blindLabel, canvas: partCanvas };
   });
+}
+
+// パーツ canvas にフェザー付き楕円マスクをかける
+// パーツの縦横比がそのまま楕円形状になり、輪郭が自然にぼける
+function applyEllipticalMask(ctx, w, h) {
+  const feather = Math.min(w, h) * 0.18;
+  const maskCanvas = document.createElement('canvas');
+  maskCanvas.width  = w;
+  maskCanvas.height = h;
+  const maskCtx = maskCanvas.getContext('2d');
+  maskCtx.filter = `blur(${Math.round(feather)}px)`;
+  maskCtx.fillStyle = '#fff';
+  maskCtx.beginPath();
+  maskCtx.ellipse(w / 2, h / 2, w / 2 - feather, h / 2 - feather, 0, 0, Math.PI * 2);
+  maskCtx.fill();
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.drawImage(maskCanvas, 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
 }
 
 // 「のっぺらぼう」canvas を生成する
@@ -194,14 +210,22 @@ function createNopperaboCanvas(imgEl, detection) {
   // マスク内だけ元画像で上書き
   preblurCtx.drawImage(maskedOrigCanvas, 0, 0);
 
-  // ⑦ 素材画像に強いぼかしをかける(顔短辺の 35%)
-  //    エッジ部分は肌色と混ざるので色味がキープされる
+  // ⑦ 素材画像に2パスの強いぼかしをかける(各パス 顔短辺の 30%、合計効果 ~60%)
+  //    1パスで大きな radius を指定するより2パスの方がより均一に広がる
+  const blurR = Math.round(Math.min(faceW, faceH) * 0.3);
+  const blurCanvas1 = document.createElement('canvas');
+  blurCanvas1.width  = W;
+  blurCanvas1.height = H;
+  const blurCtx1 = blurCanvas1.getContext('2d');
+  blurCtx1.filter = `blur(${blurR}px)`;
+  blurCtx1.drawImage(preblurCanvas, 0, 0);
+
   const blurCanvas = document.createElement('canvas');
   blurCanvas.width  = W;
   blurCanvas.height = H;
   const blurCtx = blurCanvas.getContext('2d');
-  blurCtx.filter = `blur(${Math.round(Math.min(faceW, faceH) * 0.35)}px)`;
-  blurCtx.drawImage(preblurCanvas, 0, 0);
+  blurCtx.filter = `blur(${blurR}px)`;
+  blurCtx.drawImage(blurCanvas1, 0, 0);
 
   // ⑧ ぼかし結果にソフトマスクを適用(マスク外を透明化)
   blurCtx.globalCompositeOperation = 'destination-in';
