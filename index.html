@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>福笑い</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- P-01: ホーム画面 -->
+  <div id="screen-home" class="screen active">
+    <div class="screen-content">
+      <h1>😄 福笑い</h1>
+      <label id="photo-label" class="btn-primary btn-loading" for="photo-input">⏳ AI 準備中…</label>
+      <input id="photo-input" type="file" accept="image/*" capture="environment" disabled>
+    </div>
+  </div>
+
+  <!-- P-02: 写真確認・AI処理画面 -->
+  <div id="screen-confirm" class="screen">
+    <div class="screen-content">
+      <img id="preview-img" src="" alt="選んだ写真">
+      <div id="ai-status">🔍 パーツを見つけています…</div>
+      <button id="btn-retake" class="btn-secondary">↩️ 撮り直す</button>
+    </div>
+  </div>
+
+  <!-- P-03: モード選択画面 -->
+  <div id="screen-mode" class="screen">
+    <div class="screen-content">
+      <p class="mode-title">どっちで遊ぶ？</p>
+      <button id="btn-mode-look" class="btn-mode">👀 見ながら</button>
+      <button id="btn-mode-blind" class="btn-mode">🙈 目隠し</button>
+    </div>
+  </div>
+
+  <!-- P-04: ゲーム画面 -->
+  <div id="screen-game" class="screen">
+    <canvas id="game-canvas"></canvas>
+    <button id="btn-done" class="btn-done">✅</button>
+    <button id="btn-change-mode" class="btn-change-mode">🔄</button>
+  </div>
+
+  <!-- P-05: 完成画面 -->
+  <div id="screen-result" class="screen">
+    <canvas id="result-canvas"></canvas>
+    <p class="result-title">完成！🎉</p>
+    <button id="btn-replay" class="btn-primary btn-replay">🔁 もう一度</button>
+  </div>
+
+  <!-- MediaPipe FaceDetection: 顔検出ライブラリ(CDN経由) -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
+  <script src="js/faceDetect.js"></script>
+  <script src="js/canvas.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
