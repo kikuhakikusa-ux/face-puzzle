@@ -1,4 +1,8 @@
-// アプリ全体の状態を一か所に集める
+// ====================================================================
+// face-puzzle — メイン制御
+// アプリ全体の状態管理 + 画面遷移 + UI 装飾の同期
+// ====================================================================
+
 const state = {
   mode: null,              // 'look'(見ながら) または 'blind'(目隠し)
   sourceImage: null,       // 選んだ写真の HTMLImageElement
@@ -11,23 +15,117 @@ const state = {
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+
+  // 完成画面に入ったら紙吹雪を 生成
+  if (id === 'screen-result') {
+    spawnConfetti();
+  }
 }
 
-// 各画面のボタンにイベントを登録する
+// ====================================================================
+// 紙吹雪 (P-05 完成画面)
+// ====================================================================
+function spawnConfetti() {
+  const layer = document.getElementById('confetti-layer');
+  layer.innerHTML = '';
+  const colors  = ['#F8F000', '#F04800', '#F2A8C4', '#2090E8', '#fff'];
+  const shapes  = ['square', 'circle', 'rect'];
+  const count   = 60;
+
+  for (let i = 0; i < count; i++) {
+    const piece = document.createElement('div');
+    piece.className = `confetti-piece shape-${shapes[i % shapes.length]}`;
+    piece.style.background = colors[i % colors.length];
+    piece.style.left       = `${Math.random() * 100}%`;
+    piece.style.animationDuration = `${2.4 + Math.random() * 2.4}s`;
+    piece.style.animationDelay    = `${Math.random() * 1.2}s`;
+    piece.style.transform  = `rotate(${Math.random() * 360}deg)`;
+    layer.appendChild(piece);
+  }
+}
+
+// ====================================================================
+// HUD 同期 (P-04 ゲーム画面のヘッダーとアクションバー)
+// ====================================================================
+function updateGameHud() {
+  const screen = document.getElementById('screen-game');
+  screen.dataset.mode = state.mode || '';
+
+  // モードバッジ
+  document.getElementById('hud-mode-icon').textContent = state.mode === 'blind' ? '🙈' : '👀';
+  document.getElementById('hud-mode-name').textContent = state.mode === 'blind' ? 'めかくし モード' : 'みながら モード';
+  document.getElementById('hud-mode-sub').textContent  =
+    state.mode === 'blind'
+      ? '指示の パーツを タップ'
+      : 'パーツを ゆびで うごかしてね';
+
+  // 進捗ドット
+  const dotsWrap = document.getElementById('hud-dots');
+  const progress = document.getElementById('hud-progress');
+  const total    = state.parts.length || 6;
+
+  if (state.mode === 'look') {
+    // 見ながらモードでは進捗 UI は出さない (全パーツ最初から見えるため)
+    progress.style.display = 'none';
+  } else {
+    progress.style.display = '';
+    dotsWrap.innerHTML = '';
+    for (let i = 0; i < total; i++) {
+      const dot = document.createElement('span');
+      dot.className = 'hud-dot';
+      dotsWrap.appendChild(dot);
+    }
+  }
+}
+
+// 目隠しモードで配置が進んだときに canvas.js から呼ばれる
+function notifyBlindPlaced(placedCount) {
+  const dots = document.querySelectorAll('#hud-dots .hud-dot');
+  dots.forEach((d, i) => {
+    d.classList.toggle('placed', i < placedCount);
+  });
+}
+// canvas.js から参照できるようグローバルに公開
+window.notifyBlindPlaced = notifyBlindPlaced;
+
+// ====================================================================
+// 保存ボタン (P-05)
+// ====================================================================
+function saveResult() {
+  const canvas = document.getElementById('result-canvas');
+  const link   = document.createElement('a');
+  const ts     = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  link.download = `fukuwarai_${ts}.png`;
+  link.href     = canvas.toDataURL('image/png');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// ====================================================================
+// 初期化
+// ====================================================================
 function init() {
   const photoLabel = document.getElementById('photo-label');
   const photoInput = document.getElementById('photo-input');
+  const labelText  = photoLabel.querySelector('.btn-label');
+  const labelSub   = photoLabel.querySelector('.btn-sub');
+  const labelIcon  = photoLabel.querySelector('.btn-icon');
 
   // MediaPipe を裏でロードし始める(ページを開いた瞬間から準備開始)
   initFaceDetector()
     .then(() => {
-      photoLabel.textContent = '📷 写真を選ぶ';
+      labelIcon.textContent = '📷';
+      labelText.textContent = 'しゃしんを えらぶ';
+      labelSub.textContent  = 'カメラ または アルバム';
       photoLabel.classList.remove('btn-loading');
       photoInput.disabled = false;
     })
     .catch((err) => {
       console.error('MediaPipe の初期化に失敗:', err);
-      photoLabel.textContent = '⚠️ AI 読み込み失敗';
+      labelIcon.textContent = '⚠️';
+      labelText.textContent = 'AI 読み込み失敗';
+      labelSub.textContent  = 'リロードして やりなおして';
     });
 
   // P-01: 写真を選んだとき
@@ -52,6 +150,9 @@ function init() {
   // P-04: モード変更ボタン
   document.getElementById('btn-change-mode').addEventListener('click', () => showScreen('screen-mode'));
 
+  // P-05: ほぞん
+  document.getElementById('btn-save').addEventListener('click', saveResult);
+
   // P-05: もう一度
   document.getElementById('btn-replay').addEventListener('click', () => {
     state.mode = null;
@@ -75,7 +176,8 @@ function onPhotoSelected(e) {
     img.onload = () => {
       state.sourceImage = img;
       document.getElementById('preview-img').src = ev.target.result;
-      document.getElementById('ai-status').textContent = '🔍 パーツを見つけています…';
+      const statusEl = document.getElementById('ai-status');
+      statusEl.innerHTML = 'さがしてるよ〜<span class="dot-pulse"><i></i><i></i><i></i></span>';
       showScreen('screen-confirm');
       runDetection(img);
     };
@@ -93,21 +195,19 @@ async function runDetection(img) {
     state.detection = detection;
     state.nopperaboCanvas = createNopperaboCanvas(img, detection);
 
-    const names = parts.map(p => p.name).join('・');
-    statusEl.textContent = `✅ 見つかりました: ${names}`;
-    setTimeout(() => showScreen('screen-mode'), 1000);
+    statusEl.innerHTML = `みつけた！<span style="font-size:18px">✨</span>`;
+    setTimeout(() => showScreen('screen-mode'), 900);
   } catch (err) {
     console.error('顔検出エラー:', err);
-    statusEl.textContent = '❌ 顔を検出できませんでした。別の写真を試してください。';
+    statusEl.textContent = 'みつからなかった…べつの しゃしんで';
   }
 }
 
 // モードを確定してゲーム画面へ
 function selectMode(mode) {
   state.mode = mode;
-  // 目隠しモードでは完成ボタンを非表示にする(全パーツ配置で自動完成するため)
-  document.getElementById('btn-done').style.display = mode === 'look' ? '' : 'none';
   showScreen('screen-game');
+  updateGameHud();
   initCanvas(state);
 }
 

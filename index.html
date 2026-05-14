@@ -3,50 +3,208 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>福笑い</title>
+  <meta name="theme-color" content="#2090E8">
+  <title>ふくわらい | カイロウドウケツ</title>
+
+  <!-- ブランドフォント -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Yusei+Magic&family=Zen+Maru+Gothic:wght@400;500;700;900&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/svg+xml" href="assets/Icon.svg">
 </head>
 <body>
 
+  <!-- ====================================================== -->
   <!-- P-01: ホーム画面 -->
-  <div id="screen-home" class="screen active">
-    <div class="screen-content">
-      <h1>😄 福笑い</h1>
-      <label id="photo-label" class="btn-primary btn-loading" for="photo-input">⏳ AI 準備中…</label>
+  <!-- ====================================================== -->
+  <div id="screen-home" class="screen screen-blue active">
+    <!-- 装飾 -->
+    <div class="sparkles">
+      <span class="sparkle s1"></span>
+      <span class="sparkle s2"></span>
+      <span class="sparkle s3"></span>
+      <span class="sparkle s4"></span>
+    </div>
+
+    <header class="brand-bar">
+      <img class="brand-logo" src="assets/Icon.svg" alt="">
+      <span class="brand-name">カイロウドウケツ</span>
+    </header>
+
+    <div class="home-hero">
+      <h1 class="title-display">ふくわらい</h1>
+      <p class="title-sub">家ぞくの かおで あそぼう！</p>
+    </div>
+
+    <!-- 真ん中の大きなロゴ + 両端のキャラ -->
+    <div class="home-stage">
+      <img class="home-stage-logo" src="assets/Icon.svg" alt="">
+      <img class="home-char home-char-left" src="assets/sachin-cut.png" alt="さーちん">
+      <img class="home-char home-char-right" src="assets/payachin-cut.png" alt="ぱやちん">
+    </div>
+
+    <div class="home-cta">
+      <label id="photo-label" class="btn-chunky btn-yellow btn-loading" for="photo-input">
+        <span class="btn-icon">⏳</span>
+        <span class="btn-text">
+          <span class="btn-label">AI じゅんびちゅう…</span>
+          <span class="btn-sub">すこし まってね</span>
+        </span>
+      </label>
       <input id="photo-input" type="file" accept="image/*" capture="environment" disabled>
+      <p class="hint-text">おとうさん・おかあさんの かおを つかうよ</p>
     </div>
   </div>
 
+  <!-- ====================================================== -->
   <!-- P-02: 写真確認・AI処理画面 -->
-  <div id="screen-confirm" class="screen">
-    <div class="screen-content">
-      <img id="preview-img" src="" alt="選んだ写真">
-      <div id="ai-status">🔍 パーツを見つけています…</div>
-      <button id="btn-retake" class="btn-secondary">↩️ 撮り直す</button>
+  <!-- ====================================================== -->
+  <div id="screen-confirm" class="screen screen-blue">
+    <header class="page-header">
+      <h2 class="page-title">パーツを <span class="marker-orange">さがしてるよ</span></h2>
+      <p class="page-sub">すこし まってね（10秒くらい）</p>
+    </header>
+
+    <div class="confirm-stage">
+      <div class="photo-card">
+        <img id="preview-img" alt="えらんだ しゃしん">
+        <div class="scan-line"></div>
+        <span class="ai-badge">AI 解析中</span>
+      </div>
+
+      <div class="character-bubble bubble-left">
+        <img class="bubble-char" src="assets/payachin-cut.png" alt="ぱやちん">
+        <div class="bubble">
+          <span id="ai-status">さがしてるよ〜<span class="dot-pulse"><i></i><i></i><i></i></span></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="confirm-footer">
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: 64%"></div>
+      </div>
+      <button id="btn-retake" class="btn-chunky btn-white btn-small">
+        <span class="btn-icon">↩️</span>
+        <span class="btn-label">とりなおす</span>
+      </button>
     </div>
   </div>
 
+  <!-- ====================================================== -->
   <!-- P-03: モード選択画面 -->
-  <div id="screen-mode" class="screen">
-    <div class="screen-content">
-      <p class="mode-title">どっちで遊ぶ？</p>
-      <button id="btn-mode-look" class="btn-mode">👀 見ながら</button>
-      <button id="btn-mode-blind" class="btn-mode">🙈 目隠し</button>
+  <!-- ====================================================== -->
+  <div id="screen-mode" class="screen screen-blue">
+    <div class="sparkles">
+      <span class="sparkle s1"></span>
+      <span class="sparkle s2"></span>
+    </div>
+
+    <header class="page-header">
+      <p class="step-label">STEP 1 / 2</p>
+      <h2 class="title-display title-md">どっちで あそぶ？</h2>
+    </header>
+
+    <div class="mode-cards">
+      <button id="btn-mode-look" class="mode-card mode-card-look">
+        <div class="mode-icon">👀</div>
+        <div class="mode-body">
+          <h3 class="mode-name">みながら おく</h3>
+          <p class="mode-desc">のっぺらぼうの 顔を 見ながら<br>パーツを ゆびで うごかすよ</p>
+          <span class="mode-tag tag-cream">かんたん・ちいさい子むけ</span>
+        </div>
+      </button>
+
+      <button id="btn-mode-blind" class="mode-card mode-card-blind">
+        <div class="mode-icon">🙈</div>
+        <div class="mode-body">
+          <h3 class="mode-name">めかくし</h3>
+          <p class="mode-desc">なにも 見ないで タップして<br>パーツを おいてみよう</p>
+          <span class="mode-tag tag-yellow">ドキドキ・たのしい</span>
+        </div>
+      </button>
+    </div>
+
+    <div class="mode-characters">
+      <div class="character-bubble bubble-left bubble-pink-tone">
+        <img class="bubble-char" src="assets/sachin-cut.png" alt="さーちん">
+        <div class="bubble bubble-pink">
+          すきな ほうを えらんでね！
+        </div>
+      </div>
+      <img class="bubble-char bubble-char-right" src="assets/payachin-cut.png" alt="ぱやちん">
     </div>
   </div>
 
+  <!-- ====================================================== -->
   <!-- P-04: ゲーム画面 -->
+  <!-- ====================================================== -->
   <div id="screen-game" class="screen">
     <canvas id="game-canvas"></canvas>
-    <button id="btn-done" class="btn-done">✅</button>
-    <button id="btn-change-mode" class="btn-change-mode">🔄</button>
+
+    <!-- ヘッダー(モードバッジ + パーツ残数) -->
+    <div id="game-hud" class="game-hud">
+      <div class="hud-mode-pill">
+        <span id="hud-mode-icon" class="hud-mode-icon">👀</span>
+        <span>
+          <span id="hud-mode-name" class="hud-mode-name">みながら モード</span>
+          <span id="hud-mode-sub" class="hud-mode-sub">パーツを ゆびで うごかしてね</span>
+        </span>
+      </div>
+      <div id="hud-progress" class="hud-progress">
+        <span id="hud-dots" class="hud-dots"></span>
+      </div>
+    </div>
+
+    <!-- アクションバー(モード変更 / 完成) -->
+    <div class="game-action-bar">
+      <button id="btn-change-mode" class="btn-circle btn-white">
+        <span>🔄</span>
+      </button>
+      <button id="btn-done" class="btn-pill btn-orange">
+        <span class="btn-icon">✅</span>
+        <span class="btn-label">かんせい！</span>
+      </button>
+      <div class="btn-circle-spacer"></div>
+    </div>
   </div>
 
+  <!-- ====================================================== -->
   <!-- P-05: 完成画面 -->
-  <div id="screen-result" class="screen">
-    <canvas id="result-canvas"></canvas>
-    <p class="result-title">完成！🎉</p>
-    <button id="btn-replay" class="btn-primary btn-replay">🔁 もう一度</button>
+  <!-- ====================================================== -->
+  <div id="screen-result" class="screen screen-blue">
+    <!-- 紙吹雪レイヤー (JSで動的生成) -->
+    <div id="confetti-layer" class="confetti-layer"></div>
+
+    <header class="result-banner">
+      <h2 class="title-display title-result">
+        <span class="title-result-text">かんせい！</span>
+        <span class="title-result-emoji-r">🎉</span>
+        <span class="title-result-emoji-l">✨</span>
+      </h2>
+    </header>
+
+    <div class="result-frame">
+      <canvas id="result-canvas"></canvas>
+      <div class="frame-tape tape-yellow"></div>
+      <div class="frame-tape tape-pink"></div>
+    </div>
+
+    <img class="result-char result-char-left" src="assets/sachin-cut.png" alt="さーちん">
+    <img class="result-char result-char-right" src="assets/payachin-cut.png" alt="ぱやちん">
+
+    <div class="result-actions">
+      <button id="btn-save" class="btn-chunky btn-white btn-half">
+        <span class="btn-icon">💾</span>
+        <span class="btn-label">ほぞん</span>
+      </button>
+      <button id="btn-replay" class="btn-chunky btn-yellow btn-half">
+        <span class="btn-icon">🔁</span>
+        <span class="btn-label">もういちど</span>
+      </button>
+    </div>
   </div>
 
   <!-- MediaPipe FaceDetection: 顔検出ライブラリ(CDN経由) -->

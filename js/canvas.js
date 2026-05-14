@@ -195,26 +195,155 @@ function drawFaceOutline(W, H) {
   ctx.restore();
 }
 
-// 目隠しモードの指示テキスト
+// パーツ名 → アイコン種別
+function partKindFromName(name) {
+  if (name === '左眉') return 'brow-l';
+  if (name === '右眉') return 'brow-r';
+  if (name === '左目') return 'eye-l';
+  if (name === '右目') return 'eye-r';
+  if (name === '鼻')   return 'nose';
+  if (name === '口')   return 'mouth';
+  return null;
+}
+
+// Canvas に手描き風のパーツアイコンを描く
+function drawPartIcon(targetCtx, kind, cx, cy, size, color = '#0F2E58') {
+  const sw = size * 0.08;             // stroke width
+  targetCtx.save();
+  targetCtx.strokeStyle = color;
+  targetCtx.lineWidth   = sw;
+  targetCtx.lineCap     = 'round';
+  targetCtx.lineJoin    = 'round';
+
+  const left = cx - size / 2;
+  const top  = cy - size / 2;
+
+  if (kind === 'brow-l' || kind === 'brow-r') {
+    targetCtx.beginPath();
+    if (kind === 'brow-l') {
+      targetCtx.moveTo(left + size * 0.10, top + size * 0.62);
+      targetCtx.bezierCurveTo(
+        left + size * 0.30, top + size * 0.28,
+        left + size * 0.70, top + size * 0.22,
+        left + size * 0.90, top + size * 0.50);
+    } else {
+      targetCtx.moveTo(left + size * 0.90, top + size * 0.62);
+      targetCtx.bezierCurveTo(
+        left + size * 0.70, top + size * 0.28,
+        left + size * 0.30, top + size * 0.22,
+        left + size * 0.10, top + size * 0.50);
+    }
+    targetCtx.stroke();
+  }
+  else if (kind === 'eye-l' || kind === 'eye-r') {
+    targetCtx.fillStyle = '#fff';
+    targetCtx.beginPath();
+    targetCtx.ellipse(cx, cy, size * 0.36, size * 0.22, 0, 0, Math.PI * 2);
+    targetCtx.fill();
+    targetCtx.stroke();
+    // pupil
+    const px = kind === 'eye-l' ? cx - size * 0.06 : cx + size * 0.06;
+    targetCtx.beginPath();
+    targetCtx.fillStyle = color;
+    targetCtx.arc(px, cy, size * 0.10, 0, Math.PI * 2);
+    targetCtx.fill();
+  }
+  else if (kind === 'nose') {
+    targetCtx.beginPath();
+    targetCtx.moveTo(cx, top + size * 0.18);
+    targetCtx.bezierCurveTo(
+      cx - size * 0.20, top + size * 0.40,
+      cx - size * 0.26, top + size * 0.62,
+      cx - size * 0.16, top + size * 0.78);
+    targetCtx.bezierCurveTo(
+      cx - size * 0.08, top + size * 0.86,
+      cx + size * 0.08, top + size * 0.86,
+      cx + size * 0.16, top + size * 0.78);
+    targetCtx.bezierCurveTo(
+      cx + size * 0.26, top + size * 0.62,
+      cx + size * 0.20, top + size * 0.40,
+      cx, top + size * 0.18);
+    targetCtx.closePath();
+    targetCtx.stroke();
+  }
+  else if (kind === 'mouth') {
+    targetCtx.beginPath();
+    targetCtx.moveTo(left + size * 0.10, top + size * 0.42);
+    targetCtx.bezierCurveTo(
+      left + size * 0.28, top + size * 0.78,
+      left + size * 0.72, top + size * 0.78,
+      left + size * 0.90, top + size * 0.42);
+    targetCtx.stroke();
+    // inner smile line
+    targetCtx.save();
+    targetCtx.globalAlpha = 0.4;
+    targetCtx.lineWidth   = sw * 0.65;
+    targetCtx.beginPath();
+    targetCtx.moveTo(left + size * 0.18, top + size * 0.46);
+    targetCtx.bezierCurveTo(
+      left + size * 0.32, top + size * 0.66,
+      left + size * 0.68, top + size * 0.66,
+      left + size * 0.82, top + size * 0.46);
+    targetCtx.stroke();
+    targetCtx.restore();
+  }
+
+  targetCtx.restore();
+}
+
+// 目隠しモードの指示テキスト + 大きなパーツアイコン
 function drawInstruction(W, H) {
   const part      = gameState.parts[currentPartIndex];
   const partLabel = part?.blindLabel ?? part?.name ?? '';
+  const kind      = partKindFromName(part?.name);
 
+  // 上部: 大きな黄色いまる + パーツアイコン
+  const circleR = Math.min(W * 0.20, 120);
+  const circleY = H * 0.26;
+  const circleX = W / 2;
+
+  ctx.save();
+  // shadow under circle (チャンキー感)
+  ctx.fillStyle = '#0F2E58';
+  ctx.beginPath();
+  ctx.arc(circleX, circleY + 6, circleR, 0, Math.PI * 2);
+  ctx.fill();
+  // circle body
+  ctx.fillStyle   = '#F8F000';
+  ctx.strokeStyle = '#0F2E58';
+  ctx.lineWidth   = 4;
+  ctx.beginPath();
+  ctx.arc(circleX, circleY, circleR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+
+  // パーツアイコン
+  if (kind) drawPartIcon(ctx, kind, circleX, circleY, circleR * 1.4);
+
+  // メイン指示テキスト
   ctx.save();
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
 
-  ctx.fillStyle = '#5c3a1e';
-  ctx.font      = `bold ${Math.round(W * 0.065)}px sans-serif`;
-  ctx.fillText(`${partLabel}はどこですか？`, W / 2, H / 2);
+  ctx.fillStyle = '#0F2E58';
+  ctx.font      = `800 ${Math.round(W * 0.075)}px "Yusei Magic", "Zen Maru Gothic", sans-serif`;
+  ctx.fillText(`${partLabel}は`,   W / 2, H * 0.50);
+  ctx.fillText(`どこですか？`,     W / 2, H * 0.50 + Math.round(W * 0.10));
 
-  ctx.fillStyle = '#aaa';
-  ctx.font      = `${Math.round(W * 0.04)}px sans-serif`;
-  ctx.fillText('タップして置く', W / 2, H / 2 + Math.round(W * 0.12));
+  // hint
+  ctx.fillStyle = '#6B7280';
+  ctx.font      = `700 ${Math.round(W * 0.038)}px "Zen Maru Gothic", sans-serif`;
+  ctx.fillText('画面を タップして おいてね', W / 2, H * 0.50 + Math.round(W * 0.22));
 
-  ctx.fillStyle = '#ccc';
-  ctx.font      = `${Math.round(W * 0.035)}px sans-serif`;
-  ctx.fillText(`${currentPartIndex + 1} / ${gameState.parts.length}`, W / 2, H * 0.12);
+  // ぼんやり顔ガイド (下部)
+  ctx.globalAlpha = 0.25;
+  ctx.strokeStyle = '#0F2E58';
+  ctx.lineWidth   = 3;
+  ctx.setLineDash([10, 8]);
+  ctx.beginPath();
+  ctx.ellipse(W / 2, H * 0.80, W * 0.25, H * 0.14, 0, 0, Math.PI * 2);
+  ctx.stroke();
 
   ctx.restore();
 }
@@ -298,6 +427,11 @@ function onBlindTap(x, y) {
   };
 
   currentPartIndex++;
+
+  // HUD のドットを更新 (main.js のフックを呼ぶ)
+  if (typeof window.notifyBlindPlaced === 'function') {
+    window.notifyBlindPlaced(currentPartIndex);
+  }
 
   if (currentPartIndex >= gameState.parts.length) {
     cancelAnimationFrame(animFrameId);
